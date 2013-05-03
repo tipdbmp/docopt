@@ -43,6 +43,7 @@ sub docopt
     for my $usage_pattern (@{ $usage_section->{usage_pattern_list} })
     {
         $does_pattern_match = 1;
+        use DDP; p $args;
         _handle_usage_pattern($usage_pattern, $result, $args, \$does_pattern_match);
         $pattern_match_count += $does_pattern_match;
     }
@@ -125,17 +126,31 @@ sub _handle_usage_element
     my $args                 = shift;
     my $does_pattern_match   = shift;
     my $argument_for_long_op = shift;
+    my $is_repeat            = shift;
 
     my $ref = ref $usage_element;
     my $arg = shift @$args;
     $arg //= '';
 
-    # say "\$arg => $arg";
-
     if (!$$does_pattern_match)
     {
         unshift @$args, $arg if $arg ne '';
         _undef_usage_element($usage_element, $result);
+        return;
+    }
+
+    if ($usage_element->{is_repeat})
+    {
+        $usage_element->{is_repeat} = 0;
+        unshift @$args, $arg if $arg ne '';
+        my $matching = 1;
+        my $whatever = 0;
+        my $is_repeat = 1;
+        while (@$args && $matching)
+        {
+            $matching = _handle_usage_element($usage_element, $result, $args, $does_pattern_match, \$whatever, $is_repeat);
+            # exit 1;
+        }
         return;
     }
 
@@ -171,12 +186,24 @@ sub _handle_usage_element
                 for my $short_op_arg_letter (@short_op_arg_letters)
                 {
                     if ($short_op_letter eq $short_op_arg_letter) { $result->{"-$short_op_letter"}++; $nothing_matches = 0; }
-                    else                                          { $result->{"-$short_op_letter"} //= undef; }
+                    else
+                    {
+                        $result->{"-$short_op_letter"} //= undef;
+                        if ($is_repeat)
+                        {
+                            $$does_pattern_match = 0;
+                            return 0;
+                        }
+                    }
                 }
             }
+            # say "$short_op === $short_op_arg_letters";
+            # say "\@short_op_letters: ", join('', sort @short_op_letters);
+            # say join '', @short_op_arg_letters;
+            # say "\@short_op_arg_letters: ", join('', sort @short_op_arg_letters);
 
             if ($nothing_matches) { unshift @$args, $arg_copy; };
-            if (join('', sort @short_op_letters) ne join('', sort @short_op_arg_letters))
+            if ((join('', sort @short_op_letters) ne join('', sort @short_op_arg_letters)) && !$is_repeat)
             {
                 $$does_pattern_match = 0;
             }
@@ -205,7 +232,7 @@ sub _handle_usage_element
                 {
                     if (defined $result->{"<$arg_name>"})
                     {
-                        $result->{"<$arg_name>"} = [ $result->{"<$arg_name>"} ];
+                        $result->{"<$arg_name>"} = [ $result->{"<$arg_name>"} ] if ref $result->{"<$arg_name>"} ne 'ARRAY';
                         push @{ $result->{"<$arg_name>"} }, $arg;
 
                     }
@@ -215,11 +242,13 @@ sub _handle_usage_element
                 {
                     if (defined $result->{$arg_name})
                     {
-                        $result->{$arg_name} = [ $result->{$arg_name} ];
+                        $result->{$arg_name} = [ $result->{$arg_name} ] if ref $result->{$arg_name} ne 'ARRAY';
                         push @{ $result->{$arg_name} }, $arg;
                     }
                     else { $result->{$arg_name} = $arg; }
                 }
+
+                return 1;
             }
             else
             {
@@ -228,6 +257,8 @@ sub _handle_usage_element
 
                 unshift @$args, $arg;
                 $$does_pattern_match = 0;
+
+                return 0;
             }
         }
         else
@@ -256,7 +287,7 @@ sub _handle_usage_element
 
                 if (defined $result->{"--$long_op"})
                 {
-                    $result->{"--$long_op"} = [ $result->{"--$long_op"} ];
+                    $result->{"--$long_op"} = [ $result->{"--$long_op"} ] if ref $result->{"--$long_op"} ne 'ARRAY';
                     push @{ $result->{"--$long_op"} }, _handle_usage_element($usage_element->{argument}, $result, $args, $does_pattern_match, 1);
                 }
                 else
@@ -346,7 +377,11 @@ sub _handle_usage_element
         say "can't handle '$ref' yet";
         $$does_pattern_match = 0;
         unshift @$args, $arg if $arg ne ''; # if we had an argument
+
+        return 0;
     }
+
+    return 1;
 }
 
 sub _undef_usage_element
@@ -446,9 +481,6 @@ sub _undef_usage_element
     # calculator_example.pl <value> ( ( + | - | * | / ) <value> )...
     #            <command> [<args>...]   # cal.pl (A | B) ...
 
-    # script.pl [--version] [--exec-path=<path>] [--html-path]
-    #             [ -p | --paginate | --no-pager ] [--no-replace-objects]
-    #             [--bare] [--git-dir=<path>] [--work-tree=<path>]
 
     # arguments_example.pl [-vqrh] [FILE] ...
     # arguments_example.pl (--left | --right) CORRECTION FILE
@@ -476,8 +508,21 @@ sub _undef_usage_element
     # script.pl -a | -b
     # script.pl --lo1=<file> --lo2=FILE
     # script.pl (-o (-a | -b))
+    # script.pl --long-op | -o
+    # script.pl -a
+
+    # script.pl [--version] [--exec-path=<path>] [--html-path]
+    #             [ -p | --paginate | --no-pager ] [--no-replace-objects]
+    #             [--bare] [--git-dir=<path>] [--work-tree=<path>]
+
+    # quick_example.pl tcp <host> <port> [--timeout=<seconds>]
+    # quick_example.pl serial <port> [--baud=9600] [--timeout=<seconds>]
+    # quick_example.pl -h | --help | --version
+
+    # script.pl <FILE> ...
 
 __DATA__
 Usage:
-    script.pl --long-op | -o
-    script.pl -a
+    script.pl --long-op=<file> ...
+
+
