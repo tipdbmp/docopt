@@ -1,0 +1,92 @@
+{
+use strictures 1;
+use v5.14;
+}
+
+parse:                  testcase(s) #hash # array # string # testcase(s)
+
+testcase:               docopt_string io(s)
+                        {
+                            my $docopt_str = $item{docopt_string};
+                            # $docopt_str = main::trim($docopt_str);
+                            $return = {
+                                docopt_string => $docopt_str,
+                                io_list       => $item{'io(s)'},
+                            };
+                        }
+
+docopt_string:          'r""' string '""'
+                        { $return = $item[2]; }
+
+
+io:                     input output
+                        {
+                            $return = {
+                                input => $item{input},
+                                output => $item{output},
+                            };
+                        }
+
+input:                  '$' /.+/ # . doesn't match "\n"
+                        { $return = $item[2]; }
+
+output:                 ('"user-error"' | hash)
+                        {
+                            $return = $item[1] eq '"user-error"' ? 'user-error' : $item[1];
+                        }
+
+hash:                   '{' kv_pair_list '}'
+                        { $return = $item{kv_pair_list}; }
+
+kv_pair_list:           (<leftop: kv_pair ',' kv_pair>)(?)
+                        {
+                            $return = {
+                               map { @$_ } @{ $item[1][0] }
+                            };
+                        }
+
+kv_pair:                string ':' value
+                        {
+                            $return = [ $item{string},  $item{value} ];
+                        }
+
+array:                  '[' array_list ']'
+                        { $return = $item{array_list}; }
+
+array_list:             (<leftop: value ',' value>)(?)
+                        {
+                            if (defined $item[1][0]) { $return = $item[1][0]; }
+                            else                     { $return = []; }
+                        }
+
+value:                  (boolean | number | string | null | hash | array)
+
+string:                 '"' str_content '"'
+                        { $return = $item{str_content}; }
+
+str_content:            <skip: ''> (str | str_escape)(s?)
+                        {
+                            if (defined $item[2][0])
+                            {
+                                $return = join '', @{ $item[2] };
+                            }
+                            else
+                            {
+                                $return = '';
+                            }
+                        }
+
+str:                    /[^\x{22}\\\t]+/ # \x{22} = '"', otherwise the syntax highlighting gets screwed :P
+
+str_escape:             /\\/ str_escape_chars
+                        { $return = "\\$item[2]"; }
+
+str_escape_chars:       ( /[\x{22}\\bfnrt]/ | /u[0-9A-Fa-f]{4}/ )
+
+boolean:                ('true' | 'false')
+                        { $return = $item[1] eq 'true' ? 1 : 0; }
+
+number:                 /[\d.]+/ # not exactly a IEEE floating point, but... =)
+
+null:                   'null'
+                        { $return = 'undef'; } # actual undef signals the parser that the rule didn't match
