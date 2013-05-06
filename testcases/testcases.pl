@@ -1,9 +1,7 @@
 #!/usr/bin/perl
-use lib 'lib';
-use lib 'debug';
-use strictures 1;
-use v5.14;
-use all 'Node::*';
+use strict;
+use warnings;
+use v5.10;
 use Parse::RecDescent;
 use File::Slurp;
 use Docopt::Docopt qw|docopt|; # not repeating... right
@@ -31,21 +29,45 @@ $input = read_file('testcases.docopt');
 my $tests = $parser->parse($input);
 if (!defined($tests)) { say 'could not load tests' and exit 1; }
 
-# use DDP; p $tests;
-# use Data::Dumper; $Data::Dumper::Indent = 2; print Dumper($tests);
-# use SeeTree; SeeTree::please($tests);
 
-# say "\n\ntest count: ", 0+ @$tests;
-# use DDP; p $tests->[68];
-# say $tests->[160]{docopt_string};
+# Assume the implementation is good enough to handle this input.
+my $Usage = <<'END_USAGE';
+Usage:
+    testcases.pl -h | --help
+    testcases.pl run
+    testcases.pl [ (-s | --show) <test_number> ]
 
-# $tests = [ @$tests[0 .. 67, 80 .. 100] ];
+END_USAGE
 
-testcases_report(perform_tests($tests));
+my $ops = docopt($Usage, args => \@ARGV);
+# use DDP; p $ops;
+# exit 1;
 
-# sub docopt { return {}; } # stub for the actual docopt
+if ($ops->{'-s'} || $ops->{'--show'})
+{
+    my $test_number = 0+$ops->{'<test_number>'};
 
-# perform_tests([ $tests->[68] ]);
+    if (0 < $test_number && $test_number <= @$tests)
+    {
+        use DDP; p $tests->[$test_number - 1]; #testcases_report(perform_tests([ $tests->[$see_test] ]));
+    }
+    else
+    {
+        say "$test_number is not a valid test number, try: (1, ", 0+@$tests, ')' and exit 1;
+    }
+}
+elsif ($ops->{'run'})
+{
+    testcases_report(perform_tests($tests));
+}
+elsif ($ops->{'-h'} || $ops->{'--help'})
+{
+    print $Usage;
+}
+else
+{
+    print $Usage;
+}
 
 sub perform_tests
 {
@@ -54,6 +76,14 @@ sub perform_tests
 
     for my $i (0 .. $#{$tests})
     {
+        # ignore this/these tests
+        # say "\$i: $i";
+        if ($i == (74 - 1) || $i == (155 - 1))
+        {
+            $test_outcome_list[$i] = 0;
+            next;
+        }
+
         my $io_count = @{ $tests->[$i]{io_list} };
         my $passing_ios = 0;
         my $io_number = 0;
@@ -61,17 +91,30 @@ sub perform_tests
         {
             $io_number++;
             my @args = split /\s+/, $io->{input};
+            shift @args; # get rid of 'prog'
+            # use DDP; p @args;
 
             eval
             {
-                $passing_ios += are_hashes_equal($io->{output}, docopt($tests->[$i]{docopt_string}, args => \@args));
+                my $docopt_output = docopt($tests->[$i]{docopt_string}, args => \@args);
+                # use DDP; p $docopt_output;
+                $passing_ios += are_hashes_equal($io->{output}, $docopt_output);
             };
             if ($@)
             {
-                # print $@;
-                say "test ", $i + 1, " io# $io_number failed from parser errors";
+                print "test #", $i + 1, ": $@";
+                if ($@ =~ /^"user-error"/ && $io->{output} eq q|"user-error"|)
+                {
+                    $passing_ios++;
+                }
+                else
+                {
+                    # say "doesn't begging with \"user-error\"";
+                    say "test ", $i + 1, " io# $io_number failed from parser errors";
+                }
             }
         }
+        # say "\$io_count: $io_count; \$passing_ios: $passing_ios";
         $test_outcome_list[$i] = $io_count == $passing_ios;
 
         # say "test #", $i + 1;
@@ -116,7 +159,7 @@ sub testcases_report
         $i++;
     }
 
-    say 'failing tests (ranges are inclusive):';
+    say "\nfailing tests (ranges are inclusive):";
     say join ', ', @failed_tests_ranges;
     say "failed/total: $failed_tests/$total_tests";
 }

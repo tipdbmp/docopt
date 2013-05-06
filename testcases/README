@@ -1,1 +1,3 @@
 testcases source: https://raw.github.com/docopt/docopt/master/testcases.docopt
+
+testcases.pl itself uses docopt for it's options "juggling"

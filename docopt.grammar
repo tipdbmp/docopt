@@ -4,9 +4,7 @@ use warnings;
 use v5.10;
 }
 
-parse:                  TOP(s)
-
-TOP:                    usage | option_descriptions | notes
+parse:                  usage #| option_descriptions | notes
 
 usage:                  /usage:/i usage_pattern(s)
                         { $return = bless({ usage_pattern_list => $item[2] }, 'Usage'); }
@@ -86,10 +84,10 @@ double_dash:            '--'
 single_dash:            '-'
                         { $return = bless({}, 'SingleDash'); }
 
-token:                  /[^-|\s()\[\]\w]+/
+token:                  /(<+|[^-|\s()\[\]\w]+)/
                         { $return = bless({ token => $item[1] }, 'Token'); }
 
-program_name:           ('script.pl' | /[^\s:]+/)
+program_name:           ('script.pl' | 'prog' | /[^\s:]+/)
                         { $item[1] }
 
 short_option:           '-' /\w+/
