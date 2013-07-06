@@ -1,0 +1,62 @@
+{
+use strict;
+use warnings;
+use v5.10;
+}
+
+parse:                  section
+
+                        # the last row of the section should be ignored because it's attributes are undef
+section:                section_name ':' section_row(s)
+                        {
+                            $return = bless({
+                                name => $item{section_name},
+                                rows => $item{'section_row(s)'},
+                            }, 'Section');
+                        }
+
+section_name:           /[^:]+/
+
+section_row:            option_alias_list(?) option_description(?)
+                        {
+                            my $option_alias_list = $item{'option_alias_list(?)'}[0];
+                            $option_alias_list    = defined $option_alias_list ? $option_alias_list : [];
+                            $return = bless({
+                                option_alias_list  => $option_alias_list,
+                                option_description => $item{'option_description(?)'}[0],
+                            }, 'SectionRow');
+                        }
+
+option_alias_list:      <leftop: option_alias ',' option_alias>
+                        { $return = $item[1]; }
+
+option_alias:           (long_option | short_option)
+                        { $return = $item[1]; }
+
+short_option:           '-' /\w/
+                        {
+                            $return = bless({
+                                name => $item[2],
+                            }, 'ShortOptionAlias');
+                        }
+
+long_option:            '--' /[-\w]+/ ('=' argument)(?)
+                        {
+                            $return = bless({
+                                name     => $item[2],
+                                argument => $item[3][0],
+                            }, 'LongOptionAlias');
+                        }
+
+argument:               (angle_bracket_arg | all_caps_arg)
+                        {
+                            $return = $item[1];
+                        }
+
+angle_bracket_arg:      '<' /[^>]+/ '>'
+                        { $return = bless({ name => $item[2], is_brackety => 1 }, 'Argument'); }
+
+all_caps_arg:           /[_\p{Lu}\d][-_\p{Lu}\d]+/
+                        { $return = bless({ name => $item[1] }, 'Argument'); }
+
+option_description:     /.+/

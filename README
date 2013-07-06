@@ -4,6 +4,9 @@ It's not a straight port (I wouldn't know how to do that) but instead it uses th
 parser generator module Parse::RecDescent <https://metacpan.org/module/Parse::RecDescent>
 for the parsing which is probably a good thing.
 
-Currently only the usage section can be parsed, i.e option aliasing and default values
-won't work. A few tests don't fail now hopefully for the right reasons. But as the
-testcases.pl script demonstraits it's actually kind of a usable, kind of =).
+
+Limitations:
+    * Sections are parsed but do nothing, i.e option aliasing and default values don't work.
+    * Short options (like: -o, -x) cannot be joined as in: -ox or -xo.
+    * If more options are supplied, it doesn't count as an error
+    * Really, really slow!!!

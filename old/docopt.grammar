@@ -1,0 +1,109 @@
+{
+use strict;
+use warnings;
+use v5.10;
+}
+
+parse:                  usage #| option_descriptions | notes
+
+usage:                  /usage:/i usage_pattern(s)
+                        { $return = bless({ usage_pattern_list => $item[2] }, 'Usage'); }
+
+usage_pattern:          program_name or
+                        {
+                            my $usage_element_list = ref $item{or} eq 'ARRAY' ? $item{or} : [ $item{or} ];
+                            $return = bless({
+                                program_name       => $item{program_name},
+                                usage_element_list => $usage_element_list,
+                            }, 'UsagePattern');
+                        }
+
+or:                     <leftop: usage_element_list '|' usage_element_list>
+                        {
+                            my @or_list = @{ $item[1] };
+                            if (@or_list == 1) { $return = $or_list[0]; }
+                            else               { $return = bless({ or_list => \@or_list }, 'Or'); }
+                            # $return = bless({ or_list => $item[1] }, 'Or');
+                        }
+
+usage_element_list:     usage_element(s)
+                        {
+                            my @usage_elements = @{ $item[1] };
+                            if (@usage_elements == 1) { $return = $usage_elements[0]; }
+                            else                      { $return = \@usage_elements; }
+                            # $return = bless({ usage_elements => $item[1] }, 'UsageElements');
+                        }
+
+usage_element:          (optional | required | option | argument | command | double_dash | single_dash | token) ('...')(?)
+                        {
+                            $return = $item[1];
+                            $return->{is_repeat} = defined($item[2][0]);
+                        }
+
+optional:               '[' or ']'
+                        {
+                            my $usage_element_list = ref $item[2] eq 'ARRAY' ? $item[2] : [ $item[2] ];
+                            $return = bless({ usage_element_list => $usage_element_list }, 'Optional');
+                        }
+
+required:               '(' or ')'
+                        {
+                            if (ref $item[2] eq 'ARRAY')
+                            {
+                                my @required_list = @{ $item[2] };
+                                if (@required_list == 1) { $return = $required_list[0]; }
+                                else { $return = bless({ usage_element_list => $item[2] }, 'Required'); }
+
+                            }
+                            else { $return = $item[2] }
+                        }
+| <error>
+
+option:                 short_option | long_option
+                        {
+                            $return = defined $item{short_option}
+                                    ? $item{short_option}
+                                    : $item{long_option}
+                                    ;
+                        }
+
+argument:               (angle_bracket_arg | all_caps_arg)
+                        {
+                            $return = $item[1];
+                        }
+
+command:                /[.\w]{2,}/
+                        {
+                            if ($item[1] =~ /\.pl$/) { $return = undef; } # beginning of a new usage pattern
+                            else                     { $return = bless({ name => $item[1] }, 'Command'); }
+                        }
+
+double_dash:            '--'
+                        { $return = bless({}, 'DoubleDash'); }
+
+single_dash:            '-'
+                        { $return = bless({}, 'SingleDash'); }
+
+token:                  /(<+|[^-|\s()\[\]\w]+)/
+                        { $return = bless({ token => $item[1] }, 'Token'); }
+
+program_name:           ('script.pl' | 'prog' | /[^\s:]+/)
+                        { $item[1] }
+
+short_option:           '-' /\w+/
+                        { bless({ name => $item[2] }, 'ShortOption'); }
+
+long_option:            '--' /[-\w]+/ ('=' argument)(?)
+                        # { [@item] }
+                        {
+                            $return = bless({
+                                name     => $item[2],
+                                argument => $item[3][0],
+                            }, 'LongOption');
+                        }
+
+angle_bracket_arg:      '<' /\w+/ '>'
+                        { $return = bless({ name => $item[2], is_brackety => 1 }, 'Argument'); }
+
+all_caps_arg:           /[_\p{Lu}\d]+/
+                        { $return = bless({ name => $item[1] }, 'Argument'); }

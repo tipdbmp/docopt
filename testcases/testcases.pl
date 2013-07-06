@@ -4,7 +4,8 @@ use warnings;
 use v5.10;
 use Parse::RecDescent;
 use File::Slurp;
-use Docopt::Docopt qw|docopt|; # not repeating... right
+use lib '..';
+use Docopt::Docopt; # qw|docopt|; # not repeating... right
 
 my $skip_spaces_and_comments = qr{
     (?mxs:
