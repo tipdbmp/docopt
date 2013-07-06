@@ -1,3 +1,6 @@
+Yee it seems someone else has already done it finally =): https://metacpan.org/module/Docopt
+
+
 An attempt for a Perl implementation of the docopt <https://github.com/docopt/docopt>
 Python module by Vladimir Keleshev which makes command line interfaces really easy to make.
 It's not a straight port (I wouldn't know how to do that) but instead it uses the
